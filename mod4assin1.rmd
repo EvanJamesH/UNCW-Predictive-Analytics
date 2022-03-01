@@ -1,0 +1,235 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# ClassTreeAssign1 
+## Mod 4 Assin 1
+### Evan Hildreth 
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+```
+```{r}
+heart_disease <- read_csv("heart_disease-1.csv")
+```
+
+```{r}
+heart_disease <- heart_disease %>% mutate(Sex = as_factor(Sex)) %>% 
+  mutate(ChestPainType = as_factor(ChestPainType)) %>% 
+  mutate(RestingECG = as_factor(RestingECG)) %>% 
+  mutate(ExerciseAngina = as_factor(ExerciseAngina)) %>% 
+  mutate(HeartDisease = as_factor(HeartDisease)) %>% 
+  mutate(HeartDisease = fct_recode(HeartDisease, "No" = "0", "Yes" = "1"))
+
+```
+
+### Task 1 
+
+```{r}
+set.seed(12345)
+tearing_my_heart_up <- initial_split(heart_disease, prop = 0.7, strata = HeartDisease)
+heart_disease_training <- training(tearing_my_heart_up)
+heart_disease_testing <- testing(tearing_my_heart_up)
+
+```
+
+### Task 2
+
+```{r}
+heart_disease_recipe1 <- recipe(HeartDisease ~ ., heart_disease)
+
+Tree_model <- decision_tree() %>% 
+  set_engine("rpart", model = TRUE) %>% 
+  set_mode("classification")
+
+heart_disease_wflow1 <- 
+  workflow() %>% 
+  add_model(Tree_model) %>% 
+  add_recipe(heart_disease_recipe1)
+
+heart_disease_fit <- fit(heart_disease_wflow1, heart_disease_training)
+
+heart_disease_pluck <- heart_disease_fit %>% 
+  pull_workflow_fit() %>% 
+  pluck("fit")
+
+rpart.plot(heart_disease_pluck)
+```
+
+### Task 3
+
+```{r}
+heart_disease_fit$fit$fit$fit$cptable
+
+```
+
+The CP value that corresponds with the smallest xerror value (0.3588850) is 0.01742160. 
+
+### Task 4 
+```{r}
+set.seed(123)
+folds <- vfold_cv(heart_disease_training, v = 5)
+
+heart_disease_recipe2 <- recipe(HeartDisease ~., heart_disease) %>%
+  step_dummy(all_nominal(),-all_outcomes())
+
+tree_model2 <- decision_tree(cost_complexity = tune()) %>% 
+  set_engine("rpart", model = TRUE) %>% 
+  set_mode("classification")
+
+
+heart_disease_grid <- grid_regular(cost_complexity(), levels = 25)
+                          
+heart_disease_wflow2 <- 
+  workflow() %>% 
+  add_model(tree_model2) %>% 
+  add_recipe(heart_disease_recipe2)
+
+heart_disease_res <- 
+  heart_disease_wflow2 %>% 
+  tune_grid(
+    resamples = folds,
+    grid = heart_disease_grid
+    )
+
+heart_disease_res
+```
+
+```{r}
+heart_disease_res %>%
+  collect_metrics() %>%
+  ggplot(aes(cost_complexity, mean)) +
+  geom_line(size = 1.5, alpha = 0.6) +
+  geom_point(size = 2) +
+  facet_wrap(~ .metric, scales = "free", nrow = 2) 
+
+```
+### Task 5
+Looking at the above graphs it appears that CP value ~ 0.04 looks to provide the optimal accuracy value. 
+
+### Task 6 
+
+```{r}
+best_tree_HDR <- heart_disease_res %>%
+  select_best("accuracy")
+
+best_tree_HDR
+
+final_wf <- 
+  heart_disease_wflow2 %>% 
+  finalize_workflow(best_tree_HDR)
+
+final_fit_HDR = fit(final_wf, heart_disease_training)
+
+tree_HDR = final_fit_HDR %>% 
+  pull_workflow_fit() %>% 
+  pluck("fit")
+
+rpart.plot(tree_HDR, tweak = 1.5) 
+
+```
+
+### Task 7 
+
+```{r}
+HDR_predict <- predict(final_fit_HDR, heart_disease_training, type = "class")
+head(HDR_predict)
+confusionMatrix(HDR_predict$.pred_class, heart_disease_training$HeartDisease, positive = "Yes")
+```
+Running a confusion matrix on the mode (prior to it being plucked) we find that the model has an accuracy of 0.8396. 
+
+### Task 8 
+```{r}
+Blood <- read_csv("Blood.csv")
+```
+
+```{r}
+Blood <- Blood %>% mutate(DonatedMarch = as_factor(DonatedMarch)) %>% 
+  mutate(DonatedMarch = fct_recode(DonatedMarch, "No" = "0", "Yes" = "1"))
+
+```
+
+### Task 9 
+
+```{r}
+set.seed(1234)
+Blood_spilt <- initial_split(Blood, prop = 0.7, strata = DonatedMarch)
+Blood_training <- training(Blood_spilt)
+Blood_testing <- testing(Blood_spilt)
+
+```
+
+```{r}
+set.seed(1234)
+blood_folds <- vfold_cv(Blood_training, v = 5)
+
+blood_recipe <- recipe(DonatedMarch ~., Blood) %>%
+  step_dummy(all_nominal(),-all_outcomes())
+
+blood_model <- decision_tree(cost_complexity = tune()) %>% 
+  set_engine("rpart", model = TRUE) %>% 
+  set_mode("classification")
+
+
+blood_grid <- grid_regular(cost_complexity(), levels = 25)
+                          
+blood_wflow <- 
+  workflow() %>% 
+  add_model(blood_model) %>% 
+  add_recipe(blood_recipe)
+
+Blood_res <- 
+  blood_wflow %>% 
+  tune_grid(
+    resamples = blood_folds,
+    grid = blood_grid
+    )
+
+Blood_res
+
+```
+
+```{r}
+Blood_res %>%
+  collect_metrics() %>%
+  ggplot(aes(cost_complexity, mean)) +
+  geom_line(size = 1.5, alpha = 0.6) +
+  geom_point(size = 2) +
+  facet_wrap(~ .metric, scales = "free", nrow = 2) 
+```
+Looking at the chart above, it seems the cp value of roughly ~0.020 possesses the highest accuracy rating.  
+
+```{r}
+best_bloody_tree <- Blood_res %>%
+  select_best("accuracy")
+
+best_bloody_tree
+
+Bloody_final_wf <- 
+  blood_wflow %>% 
+  finalize_workflow(best_bloody_tree)
+
+bloody_fit = fit(Bloody_final_wf, Blood_training)
+
+Bloody_tree_fit = bloody_fit %>% 
+  pull_workflow_fit() %>% 
+  pluck("fit")
+
+rpart.plot(Bloody_tree_fit, tweak = 1.5) 
+```
+### Task 11 
+
+```{r}
+Blood_predict <- predict(bloody_fit, Blood_training, type = "class")
+head(Blood_predict)
+confusionMatrix(Blood_predict$.pred_class, Blood_training$DonatedMarch, positive = "Yes")
+```
+With the blood dataset and the blood model (essentially the same as the tree_model2 just renamed) we get an accuracy of 0.8069 which is slightly lower than the accuracy received on the heart_disease dataset (0.8396 accuracy). 
+
+In addition, while the P value for both datasets with the model is significant, it is much better on heart disease dataset than the blood one. 
