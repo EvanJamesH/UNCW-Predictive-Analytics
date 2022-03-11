@@ -1,0 +1,349 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# Final Project Phase 1 (EDA)
+## Evan Hildreth 
+
+```{r include=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(skimr)
+library(GGally)
+library(VIM)
+library(gridExtra)
+```
+```{r}
+ames <- read_csv("ames_student.csv")
+```
+```{r}
+#summary(ames)
+```
+```{r}
+#str(ames)
+```
+
+```{r}
+#skim(ames)
+```
+First I ran summary,  stry, and skim to get an idea of the dataset that I am working with here. Also to check if there are any missing values that needed to be cleaned. Thankfully, this dataset is clean and there are not any NA's as evidenced by the "skim" output. 
+
+```{r}
+ames_select <- ames %>% mutate_if(sapply(ames, is.character), as.factor)
+
+```
+
+To begin the EDA I went ahead and converted all character (categories) to factors as they need to be factors to be compared to "Above Median." In the future with our EDA. 
+
+```{r}
+ames_select <- ames_select %>% dplyr::select(-"Longitude", -"Latitude")
+
+```
+
+Next, I decided to cut out Longitude and Latitude from the analysis as the format of this quantitative variable is, by its very nature, so very different from every other quantitative variable in the dataset it could give some confusing results. Further, it is a bit too precise of a variable so each degree of Longitude and Latitude would likely only have one or two houses. 
+
+Since the response variable, Above_Median, is the most important, it would be best to start the EDA by looking at the breakdown of this variable. 
+
+```{r}
+ggplot(ames_select, aes(x=Above_Median, fill= Above_Median)) + geom_bar() +
+  ggtitle("Ratio of Homes Above Median Sellling Price") + xlab("") +ylab("Count of Homes") + guides(fill="none")
+
+```
+
+What we found is that there were slightly more houses sold above the median than bellow, which would indicate that we have some skew in this dataset. 
+
+### Categorial Variables
+
+Next we are going to make a series of plot to compare the categorical (factor) data to help us determine what variables might be good to use when we later build our predictive model. 
+The main plot tool of this will be to make bar graphs with using Above_Median for the fill function. This method will be done to see if there are any variables that have a strong tenancy towards being above or bellow median. For sake of clarity it will be done in grids of 4 as that seems to be the 'sweet spot' for best use of space and readability.  
+
+In further analysis of these graphs, the most interesting and/or significant comparison plots will be presented to stakeholders. 
+
+```{r}
+ggplot(ames_select, aes(x = MS_SubClass, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 70, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+
+```
+```{r}
+p2 <- ggplot(ames_select, aes(x = MS_Zoning, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+p3 <- ggplot(ames_select, aes(x = Street, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+p4 <- ggplot(ames_select, aes(x = Alley, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+p5 <- ggplot(ames_select, aes(x = Lot_Shape, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+grid.arrange(p2,p3,p4,p5)
+```
+From these first 5 plots it looks that Alley access has some pretty strong patterns and has only a few categories so it might be easier to work with. 
+
+```{r}
+p6 <- ggplot(ames_select, aes(x = Land_Contour, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+p7 <- ggplot(ames_select, aes(x = Utilities, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+p8 <- ggplot(ames_select, aes(x = Lot_Config, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+p9 <- ggplot(ames_select, aes(x = Land_Slope, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+grid.arrange(p6,p7,p8,p9)
+
+```
+From this next set of 4 it seems that Utilities is is pretty much a given for a home to be above_median but still not the strongest indicator. 
+
+```{r}
+p10 <- ggplot(ames_select, aes(x = Neighborhood, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+p11 <- ggplot(ames_select, aes(x = Condition_1, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+p12 <- ggplot(ames_select, aes(x = Condition_2, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+p13 <- ggplot(ames_select, aes(x = Bldg_Type, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") + guides(fill="none")
+grid.arrange(p10,p11,p12,p13)
+
+```
+From these variables, it seems that neighborhood has the most variance with regards to the response variable in that some neighborhoods have a very high Above Median ratio while others are very low. Condition 1 and 2 might be worth investigation as well but may not as strong. 
+
+```{r}
+p14 <- ggplot(ames_select, aes(x = House_Style, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p15 <- ggplot(ames_select, aes(x = Overall_Qual, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p16 <- ggplot(ames_select, aes(x = Overall_Cond, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p17 <- ggplot(ames_select, aes(x = Roof_Style, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+
+grid.arrange(p14,p15,p16,p17)
+```
+From these I would say that House_Style and Overall_Qual seem to be the best indicators with House_style having a very clear upgrades grade in above avg when the home gets bigger and the better the quality the higher the ratio of above median. Overall Condition might be useful as a backup but Roof_style seems to have a fairly small impact.
+
+```{r}
+p18 <- ggplot(ames_select, aes(x = Roof_Matl, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p19 <- ggplot(ames_select, aes(x = Exterior_1st, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p20 <- ggplot(ames_select, aes(x = Exterior_2nd, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p21 <- ggplot(ames_select, aes(x = Mas_Vnr_Type, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+grid.arrange(p18,p19,p20,p21)
+```
+Mas_Vnr_Type seems to be a potential good indicator as Stone and BrkFace has a very good chance of being Above_Median. Roof_Matl also may be good as any roof made of Roll is seemingly guaranteed to be bellow median but the other material types are either 100% or roughly 50/50. 
+
+```{r}
+p22 <- ggplot(ames_select, aes(x = Exter_Qual, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p23 <- ggplot(ames_select, aes(x = Exter_Cond, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p24 <- ggplot(ames_select, aes(x = Foundation, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p25 <- ggplot(ames_select, aes(x = Bsmt_Qual, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+grid.arrange(p22,p23,p24,p25)
+```
+The two Qual variables seem to best pretty strong indicators as if the exterior or the basement is of "Excellent" or "Good" quality it has a very high chance of being Above_Median.
+
+```{r}
+p26 <- ggplot(ames_select, aes(x = Bsmt_Cond, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p27 <- ggplot(ames_select, aes(x = Bsmt_Exposure, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p28 <- ggplot(ames_select, aes(x = BsmtFin_Type_1, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p29 <- ggplot(ames_select, aes(x = BsmtFin_Type_2, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+grid.arrange(p26,p27,p28,p29)
+```
+From all 4 of these variables not having a basement is a pretty major determent to the value of the home, but beyond that there does not seem to be any major indicators which would lead to an above median home value. 
+
+```{r}
+p30 <- ggplot(ames_select, aes(x = Heating, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p31 <- ggplot(ames_select, aes(x = Heating_QC, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p32 <- ggplot(ames_select, aes(x = Central_Air, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p33 <- ggplot(ames_select, aes(x = Electrical, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+grid.arrange(p30,p31,p32,p33) 
+```
+Not particularly a fan of any of these variables. Electrical defiantly should not be used with the major "Unknown" category. The only  ones is that there are some heating types that just don't apply to Above median houses. 
+
+```{r}
+p34 <- ggplot(ames_select, aes(x = Kitchen_Qual, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p35 <- ggplot(ames_select, aes(x = Functional, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p36 <- ggplot(ames_select, aes(x = Fireplace_Qu, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p37 <- ggplot(ames_select, aes(x = Garage_Type, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+grid.arrange(p34,p35,p36,p37)
+```
+There are some good variables here to work with. Kitchen_Qual an Fireplace_Qu seem to highly favor excellent and good (lesser extend typical) for Above_median homes. Built In garages also looks to be a very strong indicator of being Above_median with no_garage being the opposite. 
+
+```{r}
+p38 <- ggplot(ames_select, aes(x = Garage_Finish, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p39 <- ggplot(ames_select, aes(x = Garage_Qual, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p40 <- ggplot(ames_select, aes(x = Garage_Cond, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p41 <- ggplot(ames_select, aes(x = Paved_Drive, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+grid.arrange(p38,p39,p40,p41)
+```
+The best variable from this bunch seems to be Paved_drive as there is a pretty clear distinction between the 3 types. Surprisingly, garage quality seems to be not have as strong of an indication compared to other quality variables tested, except that having not garage or no garage is almost always with bellow median homes. 
+
+```{r}
+p42 <- ggplot(ames_select, aes(x = Pool_QC, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p43 <- ggplot(ames_select, aes(x = Fence, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p44 <- ggplot(ames_select, aes(x = Misc_Feature, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p45 <- ggplot(ames_select, aes(x = Sale_Type, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+grid.arrange(p42,p43,p44,p45)
+
+```
+From these list of variables, the most interesting is the Pool_QC in that practically every home that has a pool was sold above median (with the lone exception being the 'typical' rating). This seems like a good variable to use in that if a home has a pool there is a good change it was sold Above Median. Fence does not seem to have a major impact, but Misc_Feature could in that Bev is almost associated with Above median. 
+
+```{r}
+p46 <- ggplot(ames_select, aes(x = Sale_Condition, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + guides(fill="none")
+p46
+```
+For the last categorical variable it looks as if this might be a good one as partial seems to be a strong indicator of being above median. 
+
+### Categorial Best Variables
+Bellow the line will be what I consider to be the 13 most interesting and useful categorical variables that I will likely be using in future state for my prediction analysis of "Above_Median"
+The general trends found here is that having better amenities, living in better neighborhoods, and having higher quality homes (garage, interior, exterior etc) generally leads to homes begin sold above median.
+
+
+```{r}
+p4 <- ggplot(ames_select, aes(x = Alley, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +ggtitle("Alley Access") + xlab("") + guides(fill="none")
+p7 <- ggplot(ames_select, aes(x = Utilities, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + ggtitle("Utilties") +xlab("") + guides(fill="none")
+p15 <- ggplot(ames_select, aes(x = Overall_Qual, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + ggtitle("Overall Home Quality") +xlab("") + guides(fill="none")
+p18 <- ggplot(ames_select, aes(x = Roof_Matl, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") + ggtitle("Roof Material") +xlab("") + guides(fill="none")
+grid.arrange(p4,p7,p15,p18)
+```
+```{r}
+p22 <- ggplot(ames_select, aes(x = Exter_Qual, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +ggtitle("Home Exterrior Quality") + xlab("") + guides(fill="none")
+p25 <- ggplot(ames_select, aes(x = Bsmt_Qual, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +ggtitle("Basement Quality") + xlab("") + guides(fill="none")
+p34 <- ggplot(ames_select, aes(x = Kitchen_Qual, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +ggtitle("Kitchen Quality") + xlab("") + guides(fill="none")
+p36 <- ggplot(ames_select, aes(x = Fireplace_Qu, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +ggtitle("Fireplace Quality") + xlab("") + guides(fill="none")
+grid.arrange(p22,p25,p34,p36)
+```
+```{r}
+p41 <- ggplot(ames_select, aes(x = Paved_Drive, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +ggtitle("Driveway Type") + xlab("") + guides(fill="none")
+p42 <- ggplot(ames_select, aes(x = Pool_QC, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +ggtitle("Pool Quality") + xlab("") + guides(fill="none")
+p44 <- ggplot(ames_select, aes(x = Misc_Feature, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +ggtitle("Misc Features") + xlab("") + guides(fill="none")
+p37 <- ggplot(ames_select, aes(x = Garage_Type, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio") +ggtitle("Garage Type") + xlab("") + guides(fill="none")
+grid.arrange(p41,p42,p44,p37)
+```
+```{r}
+p10 <- ggplot(ames_select, aes(x = Neighborhood, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 55, vjust = 1, hjust=1)) + ylab("Ratio") +xlab("") +ggtitle("Ames, Iowa Neighborhoods") + guides(fill="none")
+p10
+```
+The above 13 plots seems to show the strongest quantitative indicators if a home was sold for above median pricing or not.
+
+
+### Quantative Values
+Next, we are going to move on to the next section of analysis which will be conducting an EDA on our Quantitative values. 
+For this we are taking a different approach and are looking at box plots of the values broken down into "Yes" and "No" grouping. 
+Again, for the sake of space conversation and readability the plots will be put in groupings of 4.
+
+
+
+```{r}
+p47 <- ggplot(ames_select, aes(x = Above_Median, y = Lot_Frontage, fill =Above_Median)) + geom_boxplot()
+p48 <- ggplot(ames_select, aes(x = Above_Median, y = Lot_Area, fill =Above_Median)) + geom_boxplot()
+p49 <- ggplot(ames_select, aes(x = Above_Median, y = Year_Built, fill =Above_Median )) + geom_boxplot()
+p50 <- ggplot(ames_select, aes(x = Above_Median, y = Year_Remod_Add, fill =Above_Median)) +geom_boxplot()
+grid.arrange(p47,p48,p49,p50)
+```
+For these first for quantitative variables it seems pretty clear that the more recent the home was built or remodeled the more likely it is that the home was sold Above Median. Naturally, there are some exception and "Yes" tends to have a wider range but this is useful.
+
+```{r}
+p51 <- ggplot(ames_select, aes(x = Above_Median, y = Mas_Vnr_Area, fill= Above_Median)) + geom_boxplot()
+p52 <- ggplot(ames_select, aes(x = Above_Median, y = BsmtFin_SF_1, fill= Above_Median)) + geom_boxplot()
+p53 <- ggplot(ames_select, aes(x = Above_Median, y = BsmtFin_SF_2, fill= Above_Median)) + geom_boxplot()
+p54 <- ggplot(ames_select, aes(x = Above_Median, y = Bsmt_Unf_SF, fill= Above_Median)) + geom_boxplot()
+grid.arrange(p51,p52,p53,p54)
+```
+Not really seeing anything that jumps out to me from these variables. Possibly Mas_Vnr_Area but that's only if we need to find another one to work with.
+
+```{r}
+p55 <- ggplot(ames_select, aes(x = Above_Median, y = Total_Bsmt_SF, fill= Above_Median)) + geom_boxplot()
+p56 <- ggplot(ames_select, aes(x = Above_Median, y = First_Flr_SF, fill= Above_Median)) + geom_boxplot()
+p57 <- ggplot(ames_select, aes(x = Above_Median, y = Second_Flr_SF, fill= Above_Median)) + geom_boxplot()
+p58 <- ggplot(ames_select, aes(x = Above_Median, y = Low_Qual_Fin_SF, fill= Above_Median)) + geom_boxplot()
+grid.arrange(p55,p56,p57,p58)
+```
+Looking at these variables in regards to square feet of different portions of the home, it does show that homes that sell Above Median typically have larger square feet than homes that sell bellow median. Maybe not the strongest indicator but good to hold onto if need be. 
+
+```{r}
+p59 <- ggplot(ames_select, aes(x = Above_Median, y = Gr_Liv_Area, fill= Above_Median)) + geom_boxplot()
+p60 <- ggplot(ames_select, aes(x = Above_Median, y = Bsmt_Full_Bath, fill= Above_Median)) + geom_boxplot() 
+p61 <- ggplot(ames_select, aes(x = Above_Median, y = Bsmt_Half_Bath, fill= Above_Median)) + geom_boxplot()
+p62 <- ggplot(ames_select, aes(x = Above_Median, y = Full_Bath, fill= Above_Median)) + geom_boxplot()
+grid.arrange(p59,p60,p61,p62)
+```
+Looking at these variables in regard to the last of the rooms SF it is  on trend that the larger the living space the more likely the home is to sell above Median. 
+Looking at the start of the bathroom count variables there does not seem to be any clear major trends. There seems to be one that Above median homes have more bathrooms but is is not super clear. It may be best to create a new variable in which all the bathrooms are added together, 
+
+```{r}
+p63 <- ggplot(ames_select, aes(x = Above_Median, y = Half_Bath, fill= Above_Median)) + geom_boxplot()
+p64 <- ggplot(ames_select, aes(x = Above_Median, y = Bedroom_AbvGr, fill= Above_Median)) + geom_boxplot()
+p65 <- ggplot(ames_select, aes(x = Above_Median, y = Kitchen_AbvGr, fill= Above_Median)) + geom_boxplot()
+p66 <- ggplot(ames_select, aes(x = Above_Median, y = TotRms_AbvGrd, fill= Above_Median)) + geom_boxplot()
+grid.arrange(p63,p64,p65,p66)
+```
+Here it does seem to look that there is a trend that more bathrooms and total rooms are associated with Above Median homes. 
+
+```{r}
+ames_select <- mutate(ames_select, Total_Baths = Half_Bath + Bsmt_Full_Bath + Bsmt_Half_Bath + Full_Bath)
+```
+
+```{r}
+p67 <- ggplot(ames_select, aes(x = Above_Median, y = Total_Baths, fill= Above_Median)) + geom_boxplot() +xlab("Above Median")
+p67
+```
+Deciding to take a brief sidestep to create a new variable that adds all the baths together in a home and this paints a more clear picture that Above Median homes tend to have more bathrooms for any kind. 
+
+```{r}
+p68 <- ggplot(ames_select, aes(x = Above_Median, y = Fireplaces, fill= Above_Median)) + geom_boxplot()
+p69 <- ggplot(ames_select, aes(x = Above_Median, y = Garage_Cars, fill= Above_Median)) + geom_boxplot()
+p70 <- ggplot(ames_select, aes(x = Above_Median, y = Garage_Area, fill= Above_Median)) + geom_boxplot()
+p71 <- ggplot(ames_select, aes(x = Above_Median, y = Wood_Deck_SF, fill= Above_Median)) + geom_boxplot()
+grid.arrange(p68,p69,p70,p71)
+```
+Looking at these it again becomes clear that more square feet is associated with Above Median homes this is true for Garage area and wood deck but I think wood deck might not be the best to use because there were many zeros in the No category. 
+
+```{r}
+p72 <- ggplot(ames_select, aes(x = Above_Median, y = Open_Porch_SF, fill= Above_Median)) + geom_boxplot()
+p73 <- ggplot(ames_select, aes(x = Above_Median, y = Enclosed_Porch, fill= Above_Median)) + geom_boxplot()
+p74 <- ggplot(ames_select, aes(x = Above_Median, y = Three_season_porch, fill= Above_Median)) + geom_boxplot()
+p75 <- ggplot(ames_select, aes(x = Above_Median, y = Screen_Porch, fill= Above_Median)) + geom_boxplot()
+grid.arrange(p72,p73,p74,p75)
+```
+Same General trend that more SF is more associated with Above Median Homes but not as strongly associated with these as many homes do not have these features, with the exception of Open porch which seems to be a stronger variable. 
+
+```{r}
+p76 <- ggplot(ames_select, aes(x = Above_Median, y = Pool_Area, fill= Above_Median)) + geom_boxplot() +xlab("Above Median")
+p77 <- ggplot(ames_select, aes(x = Above_Median, y = Misc_Val, fill = Above_Median)) + geom_boxplot() +xlab("Above Median")
+grid.arrange(p76,p77)
+```
+Again, nothing really all that interesting to look at and no real strong trends to look at. 
+
+```{r}
+ames_select <- ames_select %>% mutate(Mo_Sold = as_factor(Mo_Sold))
+```
+
+```{r}
+p78 <- ggplot(ames_select, aes(x = Mo_Sold, fill= Above_Median)) +geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust=1)) + ylab("Ratio")
+p78
+```
+For the last quantitative variable, months sold, it made more sense to treat it as a factor as it showed how likely a home was to be sold Above Median based off of what month it was sold in. From this last plot above we see that there does not really seem to be any major trends in this regard. There may be some potential seasonality but that's a bit of a stretch. 
+
+### Quantative Values Result 
+
+Compared to their qualitative / categorical values there simply was not as many variables to look at and on top of that there were even fewer that seemed to be candidates to be strong variables. However, bellow is the grouping of the most useful ones that I found. 
+
+The general trends to be found from this is that strong indicators  that a home will be sold for above median pricing is that how recent the home was built/remodeled, square feet the place / each room has, and how many rooms (general and bathroom) with more almost always being better. 
+
+```{r}
+p49 <- ggplot(ames_select, aes(x = Above_Median, y = Year_Built, fill =Above_Median )) + geom_boxplot() +xlab("") + ggtitle("Year Home Built") +ylab("") + guides(fill="none")
+p50 <- ggplot(ames_select, aes(x = Above_Median, y = Year_Remod_Add, fill =Above_Median)) + geom_boxplot() +xlab("") + ggtitle("Year Home Remodled") +ylab("") + guides(fill="none")
+p54 <- ggplot(ames_select, aes(x = Above_Median, y = Bsmt_Unf_SF, fill= Above_Median)) + geom_boxplot() +xlab("") + ggtitle("Bsmt Unfin Sqr Ft") +ylab("") + guides(fill="none")
+p55 <- ggplot(ames_select, aes(x = Above_Median, y = Total_Bsmt_SF, fill = Above_Median)) + geom_boxplot()  +xlab("") + ggtitle("Basement Sqr Ft") +ylab("") + guides(fill="none")
+grid.arrange(p49,p50,p55,p54)
+```
+```{r}
+p66 <- ggplot(ames_select, aes(x = Above_Median, y = TotRms_AbvGrd, fill= Above_Median)) + geom_boxplot() +xlab("") + ggtitle("Total Rooms Above Ground") +ylab("") + guides(fill="none")
+p67 <- ggplot(ames_select, aes(x = Above_Median, y = Total_Baths, fill = Above_Median)) + geom_boxplot() +xlab("") + ggtitle("Total Bathrooms") +ylab("") + guides(fill="none")
+p70 <- ggplot(ames_select, aes(x = Above_Median, y = Garage_Area, fill = Above_Median)) + geom_boxplot() +xlab("") + ggtitle("Garage Area Sqr Ft") +ylab("") + guides(fill="none")
+grid.arrange(p66,p67,p70)
+```
+### Misc plots 
+
+While all the above plots serve their need to compare different variables with Above_median, there are a few variables that deserve their own analysis and plots on their own to more fully understand the data. Namely this is to look at the distribution of homes sold by month, year built and remodeled over time and see how many homes are sold in each neighborhood. 
+
+```{r}
+ggplot(ames_select, aes(x=Mo_Sold)) +geom_bar() +ylab("Homes sold per Month")
+
+```
+```{r}
+ggplot(ames_select, aes(x=Year_Built)) +geom_bar()
+```
+So far, we can see that most of the homes are sold in may, June, and July (5,6,7) an that most of the homes have been built within the past few years. 
+
+```{r}
+ggplot(ames_select, aes(x=Year_Remod_Add)) +geom_bar()
+
+```
+Similar trend for home remodeling but with the major caveat that many of the homes list the remodel as 1950. This potentially could be due to the fact that they may have been older than 1950 but that's as far back as the dataset goes. 
+
+```{r}
+ggplot(ames_select, aes(x=Lot_Area, y=Total_Bsmt_SF)) +geom_point()
+```
+This plot is to see if there is any clear relationship between the total lot size and the size of one of the rooms, namely the basement. If looking at the main cluster and ignoring the handful out outliers we do see a trend that as lot size increases total basement sf increases as well. 
+

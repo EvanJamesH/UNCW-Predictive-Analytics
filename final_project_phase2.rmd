@@ -1,0 +1,440 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# Final Project phase 2
+## Evan Hildreth 
+
+```{r include=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(skimr)
+library(GGally)
+library(VIM)
+library(gridExtra)
+
+```
+
+```{r}
+ames <- read_csv("ames_student.csv")
+```
+
+In phase 1 of this project we conducted an exploratory data analysis on the Ames dataset to examine what might be strong variables to predict which homes in Ames, Iowa were / are to be sold for 'Above_Median' selling prices. Out of the 80 variables in this Ames dataset 20 were found to be potentially good predictors of "Above_Median." So our models will be built off of these 20 variables we identified and we will not consider the other 59 unless deemed necessary to expand.
+
+The one "created field" from our phase 1 analysis, 'total baths' will also be included. 
+
+```{r}
+ames <- mutate(ames, Total_Baths = Half_Bath + Bsmt_Full_Bath + Bsmt_Half_Bath + Full_Bath)
+```
+
+
+```{r}
+ames_select <- ames %>% dplyr::select(Alley, Utilities, Overall_Qual,Roof_Matl,Exter_Qual,Bsmt_Qual,Kitchen_Qual,Fireplace_Qu,Paved_Drive,Pool_QC,Misc_Feature,Garage_Type, Neighborhood,Year_Built,Year_Remod_Add,Bsmt_Unf_SF,Total_Bsmt_SF,TotRms_AbvGrd,Total_Baths,Garage_Area, Above_Median)
+                       
+```
+
+We are also going to do the same data transformations where we turn each of the character values into factors as this will make it easier to build our various models with, especially as we compare to Above_Median. 
+
+```{r}
+ames_select <- ames_select %>% mutate_if(sapply(ames_select, is.character), as.factor)
+```
+
+```{r}
+#summary(ames_select)
+```
+```{r}
+#str(ames_select)
+```
+
+
+After we have selected the values we wanted and made the necessary transformations I wanted to take a brief moment to check of the variables in the dataset. Since in phase 1 we did not find any missing values and we are using a subset of the same dataset we can assume that there will not be any missing values. For the markdown they will be commented out to conserve space. 
+
+### Data training/testing split 
+For the sake of simplicity and uniformity between our different models we will the same 60/40 training/testing split for our models.
+
+```{r}
+set.seed(1234)
+ames_select_split <- initial_split(ames_select, prop = 0.6, strata = Above_Median)
+ames_select_train <- training(ames_select_split)
+ames_select_test <- testing(ames_select_split)
+
+```
+
+
+From these splits we will look at 3 types of models: Logistic Regression, classification trees, and neural networks. The main indicator of a successful model will be looking at accuracy, specificity, and sensitivity and the main metrics of the strength of a model. 
+
+## Logistic Regression 
+The first model type we will look at is logistic regression, which is arguably the most simple model type as well. For the sake experimentation we will first use a model that will contain all of our variables and then narrow down which ones prove to be best. 
+
+### Logistic Regression prep and training 
+
+```{r}
+ames_model_lg <- 
+  logistic_reg(mode = "classification") %>%
+  set_engine("glm") 
+
+ames_recipe_lg <- recipe(Above_Median ~., ames_select_train)
+
+logreg_wf <- workflow() %>%
+  add_recipe(ames_recipe_lg) %>% 
+  add_model(ames_model_lg)
+
+ames_fit_lg <- fit(logreg_wf, ames_select_train)
+options(scipen = 999)
+#summary(ames_fit_lg$fit$fit$fit)
+#for sake of consciousness I am going to comment out this summary as it is quite long
+
+```
+
+From looking at these results with all of the variables it looks like the most significant ones are Total_Bsmt_SF, Totrms_AbvGrd, Total_Baths, Garage_Detatchd, 
+and Overal_Qual_Avg with Garage_Area, Year_Remod_Add, Bsmt_Unf_SF, and Overall_Qual_Excellent being strong but not as strong predictors. We will run this model again with just these variables to see if we can get an lower (better) AIC than 676.85
+
+```{r}
+ames_recipe_lg2 = recipe(Above_Median ~ Overall_Qual + Garage_Type + Year_Remod_Add + Bsmt_Unf_SF + Total_Bsmt_SF + TotRms_AbvGrd + Total_Baths + Garage_Area, ames_select_train)
+
+logreg_wf2 = workflow() %>%
+  add_recipe(ames_recipe_lg2) %>% 
+  add_model(ames_model_lg)
+
+ames_fit_lg2 = fit(logreg_wf2, ames_select_train)
+options(scipen = 999)
+#summary(ames_fit_lg2$fit$fit$fit)
+#Same as the previous chunk
+```
+
+So when we tried to run the 'tuned' logistic regression model looking at only the statistically significant variables we actually see a slightly higher AIC of 640.93 compared to the AIC we got for all variables of 597.69
+
+Next, we are going to run predictions on the selected model set as running with every variable seems to be too large to work with and only gives a minor decrease in AIC values.
+
+```{r}
+predictions_log_reg_train <- predict(ames_fit_lg2, ames_select_train, type="prob")
+
+#head(predictions_log_reg_train)
+
+```
+
+```{r}
+predictions_log_reg_train <- predict(ames_fit_lg2, ames_select_train, type="prob")[2]
+
+#head(predictions_log_reg_train)
+
+```
+```{r include=FALSE}
+library(ROCR)
+# Forgot to add this package at the start for the predict function. 
+```
+
+
+```{r}
+ROCRpred_ames_log_reg_train <- prediction(predictions_log_reg_train, ames_select_train$Above_Median)
+
+ROCRperf_ames_log_reg_train <- performance(ROCRpred_ames_log_reg_train, "tpr", "fpr")
+plot(ROCRperf_ames_log_reg_train, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+```
+
+From looking at the AUC curve we do see that this does look to be a fair strong model as it has a very low false positive rate and the curve is fairly close to a right angle. 
+
+```{r}
+as.numeric(performance(ROCRpred_ames_log_reg_train, "auc")@y.values)
+```
+```{r}
+opt.cut <- function(perf, pred){
+    cut.ind <- mapply(FUN=function(x, y, p){
+        d = (x - 0)^2 + (y-1)^2
+        ind = which(d == min(d))
+        c(sensitivity = y[[ind]], specificity = 1-x[[ind]],
+            cutoff = p[[ind]])
+    }, perf@x.values, perf@y.values, pred@cutoffs)
+}
+print(opt.cut(ROCRperf_ames_log_reg_train, ROCRpred_ames_log_reg_train))
+
+```
+
+Running these numbers we see that we have a very high sensitivity and specificity score using the training data. 
+Next we will try to evaluate accuracy. 
+
+```{r}
+t1 = table(ames_select_train$Above_Median,predictions_log_reg_train > 0.4340579)
+t1
+```
+```{r}
+(t1[1,1]+t1[2,2])/nrow(ames_select_train)
+```
+
+And with this log_reg model we come up with an accuracy of ~89% which already is very solid but it could be improved so we will do some threshold testing. 
+
+```{r}
+t2 <- table(ames_select_train$Above_Median,predictions_log_reg_train > 0.5)
+t2
+```
+
+
+```{r}
+(t2[1,1]+t2[2,2])/nrow(ames_select_train)
+```
+
+Running through a few thresholds I found that the one that produced the highest accuracy is 0.5 producing an accuracy of of ~90% which is only a mild improvement over the original accuracy value of ~89.5%. For this application of a 90% accuracy rating with sensitivity and specificity of 89% and 91% receptively. 
+
+```{r}
+t3 <- table(ames_select_train$Above_Median,predictions_log_reg_train > 1)
+t3
+```
+```{r}
+(t3[1])/nrow(ames_select_train)
+```
+
+For good measure I also wanted to judge this against a naive model that made the impossible assumption that all homes were sold Above_Medain which resulted in an accuracy of ~49%. So I think it is safe to say that we have a sold model based off the training dataset. 
+
+### Logistic Regression Testing Set
+However, we want to make sure our data is not over-fitted to the training data and so we are going to re-run the previous steps but with the testing data to see how it compares. 
+
+```{r}
+predictions_log_reg_test <- predict(ames_fit_lg2, ames_select_test, type="prob")
+
+head(predictions_log_reg_test)
+```
+```{r}
+predictions_log_reg_test <- predict(ames_fit_lg2, ames_select_test, type="prob")[2]
+
+head(predictions_log_reg_test)
+```
+
+```{r}
+ROCRpred_ames_log_reg_test <- prediction(predictions_log_reg_test, ames_select_test$Above_Median)
+
+ROCRperf_ames_log_reg_test <- performance(ROCRpred_ames_log_reg_test, "tpr", "fpr")
+plot(ROCRperf_ames_log_reg_test, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+```
+```{r}
+as.numeric(performance(ROCRpred_ames_log_reg_test, "auc")@y.values)
+```
+```{r}
+opt.cut <- function(perf, pred){
+    cut.ind <- mapply(FUN=function(x, y, p){
+        d = (x - 0)^2 + (y-1)^2
+        ind = which(d == min(d))
+        c(sensitivity = y[[ind]], specificity = 1-x[[ind]],
+            cutoff = p[[ind]])
+    }, perf@x.values, perf@y.values, pred@cutoffs)
+}
+print(opt.cut(ROCRperf_ames_log_reg_test, ROCRpred_ames_log_reg_test))
+```
+
+Running the testing dataset split we do see slightly lower values for sensitivity and specificity than what we saw with the training dataset but not significantly so that can't potentially be chalked up to a smaller sample size (at least in part). 
+
+```{r}
+t4 <- table(ames_select_test$Above_Median,predictions_log_reg_test > 0.4812254)
+t4
+
+```
+```{r}
+
+(t4[1,1]+t4[2,2])/nrow(ames_select_test)
+```
+
+Again we see a slightly lower accuracy of 88% compared to the initial accuracy of 89% with the training set which again could be chalked up to a smaller sample size. But I would say at this point, without any threshold testing, we can pretty clear say that this model is very strong and does not suffer form any over-fitting. 
+
+However, for good measure we will do some threshold testing, 
+
+```{r}
+t5 <- table(ames_select_test$Above_Median,predictions_log_reg_test > 0.5)
+t5
+```
+```{r}
+(t5[1,1]+t5[2,2])/nrow(ames_select_test)
+```
+Running a few different threshold values we actually were not really able to tease out any higher accuracy score than what we did with the original threshold.
+
+### Logistic Regression consulusions 
+Overall, this ended up being a very strong model with high scores for all major metrics for the model on both the training and testing dataset. Naturally if we were doing much more critical work that required a higher level of precision and accuracy (like fraud detection or disease prediction) but for predicting a relatively lower-risk item, such as home prices being above or below median; I am happy with these results.
+
+## Classification Trees
+The next model type we will explore is classification trees. This is a bit more complex of a model and approach compared to logistic regression to create (sometimes) but it does have the advantage of being easier to understand since it actually can be visualized. 
+
+```{r include=FALSE}
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(caret)
+#A few more packages needed to accomplish this work that were not included in the first library  load. 
+
+```
+
+For this we will use the same 60/40 split that we used for the logistic regression models and we will also start off by using all of the 20 variables we have in out ames_select dataset and will further narrow down if necessary. 
+First, we will set up our initial model using all the variables.
+
+### Building the model
+
+```{r}
+ames_recipe_CT <- recipe(Above_Median ~., ames_select_train)
+
+tree_model <- decision_tree() %>% 
+  set_engine("rpart", model = TRUE) %>% 
+  set_mode("classification") 
+
+ames_CT_wflow <- 
+  workflow() %>% 
+  add_model(tree_model) %>% 
+  add_recipe(ames_recipe_CT)
+
+ames_CT_fit <- fit(ames_CT_wflow, ames_select_train)
+
+```
+
+The model is now built now we are going to look at the results of this model. 
+
+```{r}
+ames_CT_fit %>%
+  pull_workflow_fit() %>%
+  pluck("fit")  
+```
+```{r}
+ames_select_tree = ames_CT_fit %>% 
+  pull_workflow_fit() %>% 
+  pluck("fit")
+
+fancyRpartPlot(ames_select_tree)
+```
+```{r}
+ames_CT_fit$fit$fit$fit$cptable
+```
+
+Looking at this classification tree we can see that the model 'automatically' choose a number of variables that it though was most significant to determine if a home was sold for above median pricing or not. From this it seems that the category that has the most 'yes' would be for the home to be in one of a few neighborhoods and having the home overall quality to be average or bellow average. This seems to go again some of our intuitive ideas about the data but this is what we found. However, it seems that the highest likelihood to be below_median is for homes to be not in one of those select neighborhoods and to have less than 3 baths. This seems to be a bit more intuitive than the "yes" category. 
+ 
+Next we will gather summary statistics on the performance of this model using the training data and then compare with the testing data. 
+ 
+### Model peformance 
+ 
+```{r}
+ames_ct_pred_train <- predict(ames_CT_fit, ames_select_train, type = "class")
+#head(ames_ct_pred_train)
+#The above head was done to test that only .pred_class shows up.
+```
+
+```{r}
+confusionMatrix(ames_ct_pred_train$.pred_class,ames_select_train$Above_Median,positive="Yes")
+
+```
+From running this model on the  training set we find that we get an accuracy of about ~89% which when rounded is the same as accuracy as with the logistic regression model we created earlier using the same training data, which again is fairly strong for this use case. It is also encouraging that we have a very low P-Value indicating that this model is statistically significant. We might have some concern that it could be lower, but that's getting picky.
+
+Next, lets check for performance using the testing data.
+
+```{r}
+ames_ct_pred_test <- predict(ames_CT_fit, ames_select_test, type = "class")
+#head(ames_ct_pred_train)
+
+```
+
+```{r}
+confusionMatrix(ames_ct_pred_test$.pred_class,ames_select_test$Above_Median,positive="Yes")
+```
+
+Similar to when we tested using the testing data for the logistic regression model we find  that there is a slight dip in accuracy compared to the training. Again this could be accounted to being a smaller dataset. However this is a bit more of a drop compared to its logistic regression counterpart with ~85% accuracy for this classification tree and 88% for the logistic regression. Overall I would say this is a very strong model but maybe less so than its logistic regression counterpart. 
+
+### Clasification treees model conclusions
+Another very strong model but not as strong compared to logistic regression. We could potentially spend some time to 'prune' the dataset to squeeze out some better performance from the classification trees model like we did with logistic regression but the model did that for us 'automatically' and the variables it choose to work with are very similar to the ones we did with the logistic regression model 'manually.' Good model, just could be better. 
+
+## Neural Networks
+The last model type we will run will be neural networks. In many ways neural networks work similar to classification trees but on a much more complex scale. The complexity can be beneficial in that it can find some more novel groupings and connections with the data that can sometimes lead to some increased accuracy  but the complexity comes with the cost of processing time, but in computation and sometimes the coding. 
+
+First, we will use the same training/ testing splits that we have used to set up and then test the neural networks model. 
+
+### Creating the neural network model 
+
+```{r}
+set.seed(1234)
+fold <- vfold_cv(ames_select_train, v=5)
+
+ames_select_NN_recipe_train <- recipe(Above_Median ~., ames_select_train) %>%
+  step_normalize(all_predictors(), -all_nominal()) %>% #normalize the numeric predictors, not needed for categorical
+  step_dummy(all_nominal(), -all_outcomes())
+
+ames_select_NN_model <- 
+  mlp(hidden_units = tune(), penalty = tune(), 
+      epochs = tune()) %>%
+  set_mode("classification") %>% 
+  set_engine("nnet", verbose = 0) 
+
+ames_select_NN_workflow <- 
+  workflow() %>% 
+  add_recipe(ames_select_NN_recipe_train) %>% 
+  add_model(ames_select_NN_model)
+
+set.seed(1234)
+ames_select_NN_tune <-
+  tune_grid(ames_select_NN_workflow, resamples = fold, grid = 25)
+
+
+```
+
+Just to comment on the processing power needed for this model it took about 6 minutes for this model to render and a decently powerful laptop. 
+
+Now that we have created the model we are going to graph it out and then we are going to optimize the model using the best neural connections from it. 
+
+```{r}
+ames_select_NN_tune %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  select(mean, hidden_units, penalty, epochs) %>%
+  pivot_longer(hidden_units:epochs,
+    values_to = "value",
+    names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "Accuracy")
+
+```
+
+From what we see here there is a range of values in terms of accuracy but it is more or less about what we saw from the other 2 models so far (a range of ~86% to ~91%). Hidden units and penalty look to be in line with what we would expect for a neural network. 
+
+### Model Peformance
+
+Next we are going to select the best values from this model and then find the performance metrics for this model. 
+
+```{r}
+ames_select_best_nn <- select_best(ames_select_NN_tune, "accuracy")
+
+ames_select_final_nn = finalize_workflow(
+  ames_select_NN_workflow,
+  ames_select_best_nn
+)
+
+ames_select_final_nn
+```
+```{r}
+ames_select_final_nn_fit <- fit(ames_select_final_nn, ames_select_train)
+
+ames_select_predict_train <- predict(ames_select_final_nn_fit, ames_select_train)
+#head(ames_select_predict_train)
+```
+
+```{r}
+confusionMatrix(ames_select_predict_train$.pred_class, ames_select_train$Above_Median, positive = "Yes")
+```
+
+Very interesting results! From the looks of things, this appears to be the strongest model so far in that we have the same P-value compared to the other models using the training data, but the accuracy is much higher at ~93%! It seems that the additional computing time to build the model might actually pay off it it means we can squeeze an extra 3-4% accuracy out. 
+
+Naturally, we cannot claim victory for neural networks just yet; we need to test it using the testing data. 
+
+```{r}
+
+ames_select_predict_test <- predict(ames_select_final_nn_fit, ames_select_test)
+#head(ames_select_predict_train)
+
+```
+
+```{r}
+confusionMatrix(ames_select_predict_test$.pred_class, ames_select_test$Above_Median, positive = "Yes")
+
+```
+### Neural Network conclusion
+
+I think at this point it is pretty safe to say that at this point neural networks seems to be the strongest model for this dataset as we have an slightly lower accuracy score on the testing data (like with all the other models) but even the testing model accuracy is a bit higher than some of the other model's on the training dataset. Beyond that the sensitivity and specificity scores for the testing data here are right up there with the scores for the training data on the other models we created. 
+
+In a use-case for the business we will need to weigh the pros and cons of using a neural networks model that provides the best performance but at the cost of much longer processing time, but if it is just output performance neural networks seems to be the best.
+
